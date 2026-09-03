@@ -12,7 +12,7 @@ permissions:
 jobs:
   source-sweep:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,7 +21,18 @@ jobs:
           cache: yarn
       - name: Install dependencies
         run: yarn --ignore-scripts --frozen-lockfile
+      - name: Run focused audit proof suite
+        shell: bash
+        run: |
+          set -o pipefail
+          npx hardhat test \
+            test/audit/SubaccountUiFeeCapture.ts \
+            test/audit/SubaccountExecutionFeeCapture.ts \
+            test/audit/SubaccountAutoTopUpDoubleCharge.ts \
+            test/audit/SwapBorrowingRetroactivity.ts \
+            2>&1 | tee audit-proof-suite.log
       - name: Sweep every Solidity source file
+        if: always()
         shell: bash
         run: |
           set -o pipefail
@@ -35,12 +46,13 @@ jobs:
           git rev-parse HEAD:contracts > AUDITED_CONTRACTS_TREE.txt
           find contracts -type f -print0 | sort -z | xargs -0 sha256sum > CONTRACTS_SHA256SUMS.txt
           tar -czf gmx-synthetics-contracts-a85ea349.tar.gz contracts
-      - name: Upload full sweep and source evidence
+      - name: Upload proof, sweep, and source evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: audit-source-sweep-${{ github.sha }}
           path: |
+            audit-proof-suite.log
             audit-source-sweep.log
             gmx-synthetics-contracts-a85ea349.tar.gz
             AUDIT_BRANCH_COMMIT.txt
