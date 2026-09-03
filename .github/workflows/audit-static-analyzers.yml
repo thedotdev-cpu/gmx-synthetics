@@ -25,12 +25,12 @@ jobs:
       - run: yarn --ignore-scripts --frozen-lockfile
       - name: Compile contracts
         run: npx hardhat compile
-      - name: Run Slither
+      - name: Run Slither through Hardhat artifacts
         shell: bash
         run: |
           set +e
           python -m pip install --disable-pip-version-check slither-analyzer
-          slither . --hardhat-ignore-compile --exclude-dependencies --json slither.json > slither.txt 2>&1
+          slither . --compile-force-framework hardhat --hardhat-ignore-compile --exclude-dependencies --json slither.json > slither.txt 2>&1
           echo $? > slither.exit
           exit 0
       - uses: actions/upload-artifact@v4
@@ -49,9 +49,14 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: yarn
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - run: yarn --ignore-scripts --frozen-lockfile
       - name: Run Wake detectors
         shell: bash
         run: |
