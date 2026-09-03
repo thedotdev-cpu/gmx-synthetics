@@ -26,11 +26,25 @@ jobs:
         run: |
           set -o pipefail
           npx hardhat test --no-compile test/audit/SourceSweep.ts 2>&1 | tee audit-source-sweep.log
-      - name: Upload full sweep output
+      - name: Package exact source tree
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD > AUDIT_BRANCH_COMMIT.txt
+          git rev-parse HEAD^:contracts > AUDITED_CONTRACTS_TREE.txt
+          find contracts -type f -print0 | sort -z | xargs -0 sha256sum > CONTRACTS_SHA256SUMS.txt
+          tar -czf gmx-synthetics-contracts-a85ea349.tar.gz contracts
+      - name: Upload full sweep and source evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: audit-source-sweep-${{ github.sha }}
-          path: audit-source-sweep.log
+          path: |
+            audit-source-sweep.log
+            gmx-synthetics-contracts-a85ea349.tar.gz
+            AUDIT_BRANCH_COMMIT.txt
+            AUDITED_CONTRACTS_TREE.txt
+            CONTRACTS_SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 1
