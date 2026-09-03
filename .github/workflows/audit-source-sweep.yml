@@ -32,7 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           git rev-parse HEAD > AUDIT_BRANCH_COMMIT.txt
-          git rev-parse HEAD^:contracts > AUDITED_CONTRACTS_TREE.txt
+          git rev-parse HEAD:contracts > AUDITED_CONTRACTS_TREE.txt
           find contracts -type f -print0 | sort -z | xargs -0 sha256sum > CONTRACTS_SHA256SUMS.txt
           tar -czf gmx-synthetics-contracts-a85ea349.tar.gz contracts
       - name: Upload full sweep and source evidence
