@@ -1,0 +1,35 @@
+name: Audit source sweep
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: yarn
+      - name: Install dependencies
+        run: yarn --ignore-scripts --frozen-lockfile
+      - name: Sweep every Solidity source file
+        shell: bash
+        run: |
+          set -o pipefail
+          npx hardhat test --no-compile test/audit/SourceSweep.ts 2>&1 | tee audit-source-sweep.log
+      - name: Upload full sweep output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-source-sweep-${{ github.sha }}
+          path: audit-source-sweep.log
+          if-no-files-found: error
+          retention-days: 1
