@@ -1,8 +1,9 @@
 name: Audit source sweep
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches:
+      - audit/unconditional-main-a85ea349
   workflow_dispatch:
 
 permissions:
