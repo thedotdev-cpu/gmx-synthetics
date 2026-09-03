@@ -1,0 +1,71 @@
+name: Audit static analyzers
+
+on:
+  push:
+    branches:
+      - audit/unconditional-main-a85ea349
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  slither:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: yarn
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: yarn --ignore-scripts --frozen-lockfile
+      - name: Compile contracts
+        run: npx hardhat compile
+      - name: Run Slither
+        shell: bash
+        run: |
+          set +e
+          python -m pip install --disable-pip-version-check slither-analyzer
+          slither . --hardhat-ignore-compile --exclude-dependencies --json slither.json > slither.txt 2>&1
+          echo $? > slither.exit
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-slither-${{ github.sha }}
+          path: |
+            slither.json
+            slither.txt
+            slither.exit
+          if-no-files-found: warn
+          retention-days: 1
+
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run Wake detectors
+        shell: bash
+        run: |
+          set +e
+          python -m pip install --disable-pip-version-check eth-wake
+          wake detect all --min-impact warning --min-confidence low > wake.txt 2>&1
+          echo $? > wake.exit
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-wake-${{ github.sha }}
+          path: |
+            wake.txt
+            wake.exit
+          if-no-files-found: warn
+          retention-days: 1
