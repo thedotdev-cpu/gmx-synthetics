@@ -12,7 +12,7 @@ permissions:
 jobs:
   source-sweep:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,16 +21,28 @@ jobs:
           cache: yarn
       - name: Install dependencies
         run: yarn --ignore-scripts --frozen-lockfile
-      - name: Run focused audit proof suite
+      - name: Compile exact current source
+        shell: bash
+        run: npx hardhat compile 2>&1 | tee audit-compile.log
+      - name: Run unconditional proof candidates independently
         shell: bash
         run: |
-          set -o pipefail
-          npx hardhat test \
+          set +e
+          : > audit-proof-suite.log
+          status=0
+          for test_file in \
             test/audit/SubaccountUiFeeCapture.ts \
             test/audit/SubaccountExecutionFeeCapture.ts \
             test/audit/SubaccountAutoTopUpDoubleCharge.ts \
-            test/audit/SwapBorrowingRetroactivity.ts \
-            2>&1 | tee audit-proof-suite.log
+            test/audit/SwapBorrowingRetroactivity.ts
+          do
+            echo "===== ${test_file} =====" | tee -a audit-proof-suite.log
+            npx hardhat test --no-compile "${test_file}" 2>&1 | tee -a audit-proof-suite.log
+            rc=${PIPESTATUS[0]}
+            echo "AUDIT_TEST_RESULT|${test_file}|${rc}" | tee -a audit-proof-suite.log
+            if [ "${rc}" -ne 0 ]; then status=1; fi
+          done
+          exit ${status}
       - name: Sweep every Solidity source file
         if: always()
         shell: bash
@@ -46,12 +58,13 @@ jobs:
           git rev-parse HEAD:contracts > AUDITED_CONTRACTS_TREE.txt
           find contracts -type f -print0 | sort -z | xargs -0 sha256sum > CONTRACTS_SHA256SUMS.txt
           tar -czf gmx-synthetics-contracts-a85ea349.tar.gz contracts
-      - name: Upload proof, sweep, and source evidence
+      - name: Upload proof, sweep, compile, and source evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: audit-source-sweep-${{ github.sha }}
           path: |
+            audit-compile.log
             audit-proof-suite.log
             audit-source-sweep.log
             gmx-synthetics-contracts-a85ea349.tar.gz
